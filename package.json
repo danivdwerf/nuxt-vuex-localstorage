@@ -1,0 +1,17 @@
+{
+    "name": "nuxt-vuex-localstorage-sync",
+    "version": "1.0.0",
+    "description": "A Nuxt.js plugin to synchronize vuex store states with localstorage.",
+    "private": false,
+    "main": "index.js",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/danivdwerf/nuxt-vuex-localstorage.git"
+    },
+    "author": "Dani van der Werf",
+    "license": "ISC",
+    "bugs": {
+        "url": "https://github.com/danivdwerf/nuxt-vuex-localstorage/issues"
+    },
+    "homepage": "https://github.com/danivdwerf/nuxt-vuex-localstorage#readme"
+}
