@@ -1,6 +1,11 @@
 {
     "name": "nuxt-vuex-localstorage-sync",
     "version": "1.0.0",
+    "keywords": [
+        "vuex",
+        "nuxt",
+        "localstorage"
+    ],
     "description": "A Nuxt.js plugin to synchronize vuex store states with localstorage.",
     "private": false,
     "main": "index.js",
