@@ -3,12 +3,17 @@ This plugin will allow you to load states from localstorage and automatically up
 
 All states are loaded in the app component's `beforeCreate` hook, so all states will be available in the `beforeMount` and `mounted` hooks. The plugin is very basic and doesn't require any setting up.All you need to do is follow the naming conventions.
 
+## Installation
+```bash
+npm i -S nuxt-vuex-localstorage-sync
+```
+
 ## How to use
 ```js
 // nuxt.config.js
 export default {
     plugins: [
-        "nuxt-vuex-localstorage-sync"
+        "node_modules/nuxt-vuex-localstorage-sync"
     ]
 }
 ```
