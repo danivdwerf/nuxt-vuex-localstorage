@@ -1,133 +1,152 @@
-const parseMutations = (mutations)=>
+/**
+ * @typedef MutationInfo
+ * @property {string|null} namespace The namespace of the store. Is null when the store is defined in index.(js|ts)
+ * @property {string} stateName The name of the state to synchronise.
+ * @property {string} mutation The mutation name used to update/set the state.
+ * @property {stirng} storageName The key used to store the state in localstorage.
+ */
+
+/**
+ * Transform the mutations to an object containing all values needed by the plugin.
+ * 
+ * @param {Record<string, any>} mutations 
+ * @returns {Array<MutationInfo>}
+ */
+const findTargetMutations = (mutations)=>
 {
     // Find all mutation that follow the *FromStorage naming scheme.
-    const actions = Object.keys(mutations)
-        .filter(action=> action.toLowerCase().includes("fromstorage"));
+    const actions = Object.keys(mutations).filter(action=> action.toLowerCase().endsWith("fromstorage"));
 
-    const states = actions.map(action=>
+    const targets = [];
+    for(let i = 0; i < actions.length; i++)
     {
-        // Split the store namespace from the mutation method.
-        const split = action.split("/");
-
-        // Unsupported mutation scheme.
+        const split = actions[i].split("/");
         if(split.length < 1 || split.length > 2)
-            return;
-        
-        const tmp = {
-            context: null,
-            stateName: null,
-            mutation: null,
-            computedName: null
+            continue;
+    
+        // If the mutation doesn't gave a namespace we need index 0 of the split, otherwise we need index 1.
+        const mutationIndex = split.length === 1 ? 0 : 1;
+
+        // If the mutation doesn't start at index 0, it means that the namespace is stored at index 0.
+        const namespace = mutationIndex === 0 ? null : split[0];
+
+        const stateName = split[mutationIndex].substr(0, split[mutationIndex].toLowerCase().indexOf("fromstorage"));
+
+        const info = {
+            namespace: namespace,
+            stateName: stateName,
+            storageName: stateName,
+            mutation: split[mutationIndex]
         };
 
-        // This means the store file is the index.(ts|js)
-        if(split.length === 1)
+        // Allow different namespaces too have the same state names by appending the namespace name to the state name.
+        let storageName = info.stateName;
+        if(!!info.namespace)
         {
-            tmp.mutation = split[0];
-            tmp.stateName = split[0].substr(0, split[0].toLowerCase().indexOf("fromstorage"));
+            storageName = `${info.namespace}-${info.stateName}`;
+            info.mutation = `${info.namespace}/${info.mutation}`;
         }
-        // This means the store has it's own file within the stores folder.
-        else
-        {
-            tmp.context = split[0];
-            tmp.mutation = split[1];
-            tmp.stateName = split[1].substr(0, split[1].toLowerCase().indexOf("fromstorage"));
-        }
-
-        // The name of the computed object.
-        let computed = tmp.stateName;
-        if(!!tmp.context)
-            computed = tmp.context + capitalize(tmp.stateName);
-
-        tmp.computedName = computed;
-
-        // The key in the localstorage.
-        let storageName = tmp.stateName;
-        if(!!tmp.context)
-            storageName = `${tmp.context}-${tmp.stateName}`;
         
-        tmp.storageName = storageName;
-        return tmp;
-    });
+        info.storageName = storageName;
+        targets.push(info);
+    }
 
-    return states;
+    return targets;
 };
 
-function capitalize(word)
+/**
+ * Load and parse a value from localstorage,
+ * 
+ * @param {String} key 
+ * @returns {any}
+ */
+const loadInitialLocalStorage = key=>
 {
-    return word
-        .toLowerCase()
-        .replace(/\w/, firstLetter => firstLetter.toUpperCase());
-}
+    let storage;
+    try{storage = localStorage.getItem(key);}
+    catch(error){return null;}
+
+    if(!storage)
+        return null;
+
+    let json;
+    try{json = JSON.parse(storage);}
+    catch(error){return null;}
+
+    return json;
+};
 
 export default function (options)
 {
-    const states = parseMutations(options.store._mutations);
+    const states = findTargetMutations(options.store._mutations);
+
     const plugin = {
+        // These are empty since we want to set them dynamically.
+        watch: {},
+        computed: {},
+
+        /**
+         * Try to load all initial values from localstorage and commit them if the exist.
+         */
 		beforeCreate()
         {
-            const loadInitialLocalStorage = (key, commit)=>
+            const len = states.length;
+            for(let i = 0; i < len; i++)
             {
-                let storage;
-                try{storage = localStorage.getItem(key);}
-                catch(error){return;}
-
-                if(!storage)
-                    return;
-
-                let json;
-                try{json = JSON.parse(storage);}
-                catch(error){return;}
-
-                this.$store.commit(commit, json);
-            };
-
-            states.forEach(state=>
-            {   
-                let mutation = state.mutation;
-                if(!!state.context)
-                    mutation = `${state.context}/${mutation}`;
-
-                loadInitialLocalStorage(state.storageName, mutation);
-            });
+                const state = states[i];
+                const initialValue = loadInitialLocalStorage(state.storageName);
+                if(!!initialValue)
+                    this.$store.commit(state.mutation, initialValue);
+            }
 		},
-        computed: {},
-        watch: {},
         methods: {
+            /**
+             * Save the given value in localstorage by the given key.
+             * 
+             * @param {String} key 
+             * @param {any} value 
+             */
             syncLocalStorage(key, value)
             {
                 let content;
                 try{content = JSON.stringify(value);}
-                catch(error){return console.warn("Failed to synchronize local storage");}
+                catch(error){return console.warn("Failed to synchronize local storage", error);}
 
                 try{localStorage.setItem(key, content);}
-                catch(error){return console.warn("Failed to synchronize local storage");}
+                catch(error){return console.warn("Failed to synchronize local storage", error);}
             }
         }
 	};
 
-
-    states.forEach(state=>
+    const len = states.length;
+    for(let i = 0; i < len; i++)
     {
+        const state = states[i];
+
+        // The name of the computed object.
+        let computed = state.stateName;
+        if(!!state.namespace)
+            computed = state.namespace + state.stateName;
+
         // Setup the computed values.
-        plugin.computed[state.computedName] = function()
+        plugin.computed[computed] = function()
         {
             let storeState = this.$store.state;
-            if(state.context)
-                storeState = storeState[state.context];
+            if(state.namespace)
+                storeState = storeState[state.namespace];
                 
             return storeState[state.stateName];
         }
 
         // Watch the computed value and synchronize local storage.
-        plugin.watch[state.computedName] = function(val, previous)
+        plugin.watch[computed] = function(val, previous)
         {
             if(val === previous)
                 return;
 
             this.syncLocalStorage(state.storageName, val);
         }
-    });
+    }
 
     if(!options.app.mixins)
         options.app.mixins = [];
