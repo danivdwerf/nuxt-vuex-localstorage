@@ -18,7 +18,8 @@ const findTargetMutations = (mutations)=>
     const actions = Object.keys(mutations).filter(action=> action.toLowerCase().endsWith("fromstorage"));
 
     const targets = [];
-    for(let i = 0; i < actions.length; i++)
+    const len = actions.length;
+    for(let i = 0; i < len; i++)
     {
         const split = actions[i].split("/");
         if(split.length < 1 || split.length > 2)
